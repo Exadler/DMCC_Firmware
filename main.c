@@ -4,7 +4,10 @@
 //
 //  DMCC motorDriver
 //
-//  Copyright (C) 2014 by Exadler Technologies Inc., All Rights Reserved.
+//  Copyright (C) 2016 by Exadler Technologies Inc., All Rights Reserved.
+//
+//  Custom modified version to use the power limits for the PID control
+//  if the power is set to something other than 0
 //
 //  Portions of this code are copyright by Microchip and may only be
 //  used on their devices.
@@ -92,6 +95,12 @@ extern struct FlagType Flag;
 
 #define MOTOR_SUPPLY_VOLTAGE_LSB (0x06)
 #define MOTOR_SUPPLY_VOLTAGE_MSB (0x07)
+
+#define PID_LIMIT_1 (0x08)
+#define PID_LIMIT_1_MSB (0x09)
+
+#define PID_LIMIT_2 (0x0a)
+#define PID_LIMIT_2_MSB (0x0b)
 
 
 #define QEI1_LSB (0x10)
@@ -419,6 +428,8 @@ void processCommand(void)
             PID1Mode = 0;
             PID2Mode = 0;
             break;
+
+
         case 0x11:  // Set Motor1 PID Position Mode
             resetPID(1);
             PID1Mode = 1;
@@ -768,6 +779,9 @@ void __attribute__((__interrupt__, no_auto_psv)) _T1Interrupt (void)
     int temp;
     long int lPower;
 
+    unsigned int *pPID_limit;
+    unsigned int uPID_limit;
+
     p1 = POS1CNT;
     p2 = POS2CNT;
 
@@ -824,6 +838,27 @@ void __attribute__((__interrupt__, no_auto_psv)) _T1Interrupt (void)
 
         temp = (int) lPower;
 
+        // Limit changes 14-Mar-2016
+        pPID_limit = (unsigned int *) &RAMBuffer[PID_LIMIT_1];
+        uPID_limit = *pPID_limit;
+
+        if (uPID_limit != 0) {
+            // Only limit the system if not zero
+            if (uPID_limit > 10000) {
+                uPID_limit = 10000;
+            }
+            if (temp >= 0) {
+                if (temp > ((int) uPID_limit)) {
+                    temp = (int) uPID_limit;
+                }
+            } else {
+                if (temp < -((int) uPID_limit)) {
+                    temp = -((int) uPID_limit);
+                }
+            }
+        }
+
+
         // set the power level
         setMotorPower(1, temp);
 
@@ -862,6 +897,27 @@ void __attribute__((__interrupt__, no_auto_psv)) _T1Interrupt (void)
         lPower = MAKEWORD(lPower);
 
         temp = (int) lPower;
+
+        // Limit changes 14-Mar-2016
+        pPID_limit = (unsigned int *) &RAMBuffer[PID_LIMIT_1];
+        uPID_limit = *pPID_limit;
+
+        if (uPID_limit != 0) {
+            // Only limit the system if not zero
+            if (uPID_limit > 10000) {
+                uPID_limit = 10000;
+            }
+            if (temp >= 0) {
+                if (temp > ((int) uPID_limit)) {
+                    temp = (int) uPID_limit;
+                }
+            } else {
+                if (temp < -((int) uPID_limit)) {
+                    temp = -((int) uPID_limit);
+                }
+            }
+        }
+
 
         // set the power level
         setMotorPower(1, temp);
@@ -915,6 +971,27 @@ void __attribute__((__interrupt__, no_auto_psv)) _T1Interrupt (void)
 
         temp = (int) lPower;
 
+        // Limit changes 14-Mar-2016
+        pPID_limit = (unsigned int *) &RAMBuffer[PID_LIMIT_2];
+        uPID_limit = *pPID_limit;
+
+        if (uPID_limit != 0) {
+            // Only limit the system if not zero
+            if (uPID_limit > 10000) {
+                uPID_limit = 10000;
+            }
+            if (temp >= 0) {
+                if (temp > ((int) uPID_limit)) {
+                    temp = (int) uPID_limit;
+                }
+            } else {
+                if (temp < -((int) uPID_limit)) {
+                    temp = -((int) uPID_limit);
+                }
+            }
+        }
+
+
         // set the power level
         setMotorPower(2, temp);
 
@@ -953,6 +1030,27 @@ void __attribute__((__interrupt__, no_auto_psv)) _T1Interrupt (void)
         lPower = MAKEWORD(lPower);
 
         temp = (int) lPower;
+
+        // Limit changes 14-Mar-2016
+        pPID_limit = (unsigned int *) &RAMBuffer[PID_LIMIT_2];
+        uPID_limit = *pPID_limit;
+
+        if (uPID_limit != 0) {
+            // Only limit the system if not zero
+            if (uPID_limit > 10000) {
+                uPID_limit = 10000;
+            }
+            if (temp >= 0) {
+                if (temp > ((int) uPID_limit)) {
+                    temp = (int) uPID_limit;
+                }
+            } else {
+                if (temp < -((int) uPID_limit)) {
+                    temp = -((int) uPID_limit);
+                }
+            }
+        }
+
 
         // set the power level
         setMotorPower(2, temp);
@@ -1077,6 +1175,13 @@ int main()
     setMotorPower(1,0);
     setMotorPower(2,0);
 
+    // Changed 14-Mar-2016
+    // Set up PID limits to zero
+    RAMBuffer[PID_LIMIT_1] = 0;
+    RAMBuffer[PID_LIMIT_1_MSB] = 0;
+    RAMBuffer[PID_LIMIT_2] = 0;
+    RAMBuffer[PID_LIMIT_2_MSB] = 0;
+
     // Enable PWM
     P1TCONbits.PTEN = 1;
 
@@ -1099,8 +1204,8 @@ int main()
     capeID = (PORTA & 0x0300) >> 8;
 
     char *capeIDstr;
-    capeIDstr = &RAMBuffer[CAPEID];
-    char versionString[] = "DMCC Mk.06";
+    capeIDstr = (char *) &RAMBuffer[CAPEID];
+    char versionString[] = "DMCC Mk.07c1";
     
     strcpy (capeIDstr, versionString);
 
